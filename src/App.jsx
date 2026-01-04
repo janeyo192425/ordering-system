@@ -1,17 +1,18 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
-  ChevronLeft, ChevronRight, Coffee, Sun, Moon,
+  ChevronLeft, ChevronRight, Coffee, Sun, Moon, Stars,
   Briefcase, DollarSign, Settings, UserPlus, Download, X,
-  Trash2, Database, Stars, LogOut, CheckCircle, Save, FileText,
-  KeyRound, RefreshCcw, AlertTriangle
+  Trash2, Database, LogOut, User, Megaphone, Calendar as CalendarIcon,
+  CheckCircle2, Search, FileUp, FileDown, Upload
 } from 'lucide-react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
-  getFirestore, collection, doc, getDoc, setDoc, onSnapshot, deleteDoc, updateDoc
+  getFirestore, collection, doc, getDoc, setDoc, updateDoc, onSnapshot, deleteDoc, writeBatch
 } from 'firebase/firestore';
+import * as XLSX from 'xlsx'; // 引入 Excel 處理套件
 
 // ==========================================
-// ★★★ 1. Firebase 設定區 ★★★
+// ★★★ 1. Firebase 設定區 (已填入你的金鑰) ★★★
 // ==========================================
 const firebaseConfig = {
   apiKey: 'AIzaSyBqfmLMeTdDbMrHs1ZFYWOcO4V3WDez5TY',
@@ -27,156 +28,39 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(app);
 
 // ==========================================
-// ★★★ 2. 預設員工資料 ★★★
+// ★★★ 2. 初始員工資料 ★★★
 // ==========================================
 const INITIAL_STAFF_DATA = [
-  // --- 管理員 ---
   { unit: '產品部', code: 'PD', id: 'L2500333', name: '張甄祐', role: 'ADMIN', password: '1234' },
-  { unit: '製造四部', code: 'M4', id: 'L2300106', name: '周勁宏', role: 'ADMIN', password: '1234' },
-  // --- 特殊權限 ---
-  { unit: '製造四部', code: 'M4', id: 'L2503391', name: '李紹箕', role: 'SUPPORT', password: '1234' },
-  { unit: '人資部', code: 'HR', id: 'L2501282', name: '李迎菁', role: 'HR', password: '1234' },
-  // --- 員工 ---
-  { unit: '事業處', code: 'BU', id: 'L2403888', name: '劉景寛', role: 'USER', password: '1234' },
-  { unit: '事業處', code: 'BU', id: 'L2300020', name: '吳政誼', role: 'USER', password: '1234' },
+  { unit: '事業處', code: 'BU', id: 'L2403888', name: '劉景寛', role: 'SUPPORT', password: '1234' },
+  { unit: '事業處', code: 'BU', id: 'L2300020', name: '吳政誼', role: 'HR', password: '1234' },
   { unit: '製造處', code: 'ME', id: 'L2300036', name: '陳彥麟', role: 'USER', password: '1234' },
   { unit: '研發工程部', code: '研發', id: 'L2300037', name: '陳璽翔', role: 'USER', password: '1234' },
-  { unit: '研發工程部', code: '研發', id: 'L2503538', name: '蘇元岑', role: 'USER', password: '1234' },
   { unit: '工程一課', code: 'E1', id: 'L2300150', name: '葉宗霖', role: 'USER', password: '1234' },
-  { unit: '工程一課', code: 'E1', id: 'L2501287', name: '黃懋庭', role: 'USER', password: '1234' },
-  { unit: '工程一課', code: 'E1', id: 'L2501665', name: '張心瑜', role: 'USER', password: '1234' },
-  { unit: '工程一課', code: 'E1', id: 'L2502668', name: '魏雨任', role: 'USER', password: '1234' },
-  { unit: '工程一課', code: 'E1', id: 'L2503052', name: '許紹謙', role: 'USER', password: '1234' },
-  { unit: '工程一課', code: 'E1', id: 'L2503273', name: '顏晟哲', role: 'USER', password: '1234' },
-  { unit: '工程二課', code: 'E2', id: 'L2300052', name: '莊孟榕', role: 'USER', password: '1234' },
-  { unit: '工程二課', code: 'E2', id: 'L2300114', name: '石安哲', role: 'USER', password: '1234' },
-  { unit: '工程二課', code: 'E2', id: 'L2300153', name: '李大維', role: 'USER', password: '1234' },
-  { unit: '工程二課', code: 'E2', id: 'L2500719', name: '鍾繼謙', role: 'USER', password: '1234' },
-  { unit: '工程二課', code: 'E2', id: 'L2500996', name: '蔡謨楷', role: 'USER', password: '1234' },
-  { unit: '工程二課', code: 'E2', id: 'L2502492', name: '張立欣', role: 'USER', password: '1234' },
-  { unit: '工程二課', code: 'E2', id: 'L2502654', name: '林俞萱', role: 'USER', password: '1234' },
-  { unit: '工程三課', code: 'E3', id: 'L2300102', name: '鄧博仰', role: 'USER', password: '1234' },
-  { unit: '工程三課', code: 'E3', id: 'L2300115', name: '陳喜雍', role: 'USER', password: '1234' },
-  { unit: '工程三課', code: 'E3', id: 'L2300056', name: '簡嘉良', role: 'USER', password: '1234' },
-  { unit: '工程三課', code: 'E3', id: 'L2500934', name: '王靖侖', role: 'USER', password: '1234' },
-  { unit: '工程三課', code: 'E3', id: 'L2501051', name: '鄒承樺', role: 'USER', password: '1234' },
-  { unit: '工程三課', code: 'E3', id: 'L2503139', name: '丁永政', role: 'USER', password: '1234' },
-  { unit: '工程三課', code: 'E3', id: 'L2503235', name: '羅士涵', role: 'USER', password: '1234' },
-  { unit: '工程三課', code: 'E3', id: 'L2503272', name: '李偉銘', role: 'USER', password: '1234' },
-  { unit: '工程三課', code: 'E3', id: 'L2503539', name: '張柏森', role: 'USER', password: '1234' },
-  { unit: '工程四課', code: 'E4', id: 'L2300055', name: '金萬祥', role: 'USER', password: '1234' },
-  { unit: '工程四課', code: 'E4', id: 'L2300100', name: '梁騰云', role: 'USER', password: '1234' },
-  { unit: '工程四課', code: 'E4', id: 'L2501335', name: '曾裕凱', role: 'USER', password: '1234' },
-  { unit: '工程四課', code: 'E4', id: 'L2501508', name: '林健喬', role: 'USER', password: '1234' },
-  { unit: '工程四課', code: 'E4', id: 'L2501910', name: '吳政寰', role: 'USER', password: '1234' },
-  { unit: '工程五部', code: 'E5', id: 'L2300057', name: '李科科', role: 'USER', password: '1234' },
-  { unit: '工程五部', code: 'E5', id: 'L2300113', name: '莊詠智', role: 'USER', password: '1234' },
-  { unit: '工程五部', code: 'E5', id: 'L2500479', name: '黃宗彬', role: 'USER', password: '1234' },
-  { unit: '工程五部', code: 'E5', id: 'L2500997', name: '林君炫', role: 'USER', password: '1234' },
-  { unit: '工程五部', code: 'E5', id: 'L2501510', name: '張尹奕', role: 'USER', password: '1234' },
-  { unit: '工程五部', code: 'E5', id: 'L2502348', name: '李懿珊', role: 'USER', password: '1234' },
-  { unit: '工程五部', code: 'E5', id: 'L2501937', name: '姚瑞鴻', role: 'USER', password: '1234' },
-  { unit: '製造一部', code: 'M1', id: 'L2300098', name: '陳智君', role: 'USER', password: '1234' },
-  { unit: '製造一部', code: 'M1', id: 'L2500335', name: '林炳順', role: 'USER', password: '1234' },
-  { unit: '製造一部', code: 'M1', id: 'L2502870', name: '楊穎恩', role: 'USER', password: '1234' },
-  { unit: '製造一部', code: 'M1', id: 'L2502871', name: '洪鈞彬', role: 'USER', password: '1234' },
-  { unit: '製造一部', code: 'M1', id: 'L2503053', name: '譚世偉', role: 'USER', password: '1234' },
-  { unit: '製造一部', code: 'M1', id: 'L2503527', name: '林侑誱', role: 'USER', password: '1234' },
-  { unit: '製造二部', code: 'M2', id: 'L2300094', name: '林啟榮', role: 'USER', password: '1234' },
-  { unit: '製造二部', code: 'M2', id: 'L2500331', name: '黃小珊', role: 'USER', password: '1234' },
-  { unit: '製造二部', code: 'M2', id: 'L2502243', name: '曾紹瑜', role: 'USER', password: '1234' },
-  { unit: '製造二部', code: 'M2', id: 'L2502076', name: '方明凱', role: 'USER', password: '1234' },
-  { unit: '製造二部', code: 'M2', id: 'L2502795', name: '王聖賀', role: 'USER', password: '1234' },
-  { unit: '製造二部', code: 'M2', id: 'L2502917', name: '郭育銓', role: 'USER', password: '1234' },
-  { unit: '製造二部', code: 'M2', id: 'L2503143', name: '盧文偉', role: 'USER', password: '1234' },
-  { unit: '製造二部', code: 'M2', id: 'L2503137', name: '朱俊億', role: 'USER', password: '1234' },
-  { unit: '製造二部', code: 'M2', id: 'L2503236', name: '鄒威琦', role: 'USER', password: '1234' },
-  { unit: '製造三部', code: 'M3', id: 'L2500871', name: '董世雄', role: 'USER', password: '1234' },
-  { unit: '製造三部', code: 'M3', id: 'L2502771', name: '黃彥博', role: 'USER', password: '1234' },
-  { unit: '製造三部', code: 'M3', id: 'L2502794', name: '徐子荃', role: 'USER', password: '1234' },
-  { unit: '製造三部', code: 'M3', id: 'L2502727', name: '翁韜惟', role: 'USER', password: '1234' },
-  { unit: '製造三部', code: 'M3', id: 'L2502792', name: '劉子誠', role: 'USER', password: '1234' },
-  { unit: '製造三部', code: 'M3', id: 'L2502869', name: '程昱翰', role: 'USER', password: '1234' },
-  { unit: '製造三部', code: 'M3', id: 'L2503059', name: '陳宜佑', role: 'USER', password: '1234' },
-  { unit: '製造三部', code: 'M3', id: 'L2503176', name: '謝仕峯', role: 'USER', password: '1234' },
-  { unit: '製造四部', code: 'M4', id: 'L2501336', name: '葉貞成', role: 'USER', password: '1234' },
-  { unit: '製造四部', code: 'M4', id: 'L2502176', name: '凌賜恩', role: 'USER', password: '1234' },
-  { unit: '製造四部', code: 'M4', id: 'L2502729', name: '黃韋綸', role: 'USER', password: '1234' },
-  { unit: '製造四部', code: 'M4', id: 'L2503058', name: '林健業', role: 'USER', password: '1234' },
-  { unit: '製造五部', code: 'M5', id: 'L2300105', name: '陳仁杰', role: 'USER', password: '1234' },
-  { unit: '製造五部', code: 'M5', id: 'L2500478', name: '薛嘉雯', role: 'USER', password: '1234' },
-  { unit: '製造五部', code: 'M5', id: 'L2501289', name: '李勁頤', role: 'USER', password: '1234' },
-  { unit: '製造五部', code: 'M5', id: 'L2502125', name: '邱建嘉', role: 'USER', password: '1234' },
-  { unit: '製造五部', code: 'M5', id: 'L2502261', name: '黃靖允', role: 'USER', password: '1234' },
-  { unit: '製造五部', code: 'M5', id: 'L2502915', name: '梁家樺', role: 'USER', password: '1234' },
-  { unit: '製造五部', code: 'M5', id: 'L2503057', name: '卓志修', role: 'USER', password: '1234' },
-  { unit: '製造五部', code: 'M5', id: 'L2503060', name: '張正翰', role: 'USER', password: '1234' },
-  { unit: '製造五部', code: 'M5', id: 'L2503392', name: '曾文', role: 'USER', password: '1234' },
-  { unit: '製造五部', code: 'M5', id: 'L2503393', name: '蔡東昕', role: 'USER', password: '1234' },
-  { unit: '製造五部', code: 'M5', id: 'L2503526', name: '鄭佑良', role: 'USER', password: '1234' },
-  { unit: '產品部', code: 'PD', id: 'L2300075', name: '莊瑞檳', role: 'USER', password: '1234' },
-  { unit: '產品部', code: 'PD', id: 'L2300160', name: '邱渝靜', role: 'USER', password: '1234' },
-  { unit: '產品部', code: 'PD', id: 'L2300071', name: '廖子欽', role: 'USER', password: '1234' },
-  { unit: '產品部', code: 'PD', id: 'L2501406', name: '郭君豪', role: 'USER', password: '1234' },
-  { unit: '產品部', code: 'CAM', id: 'L2300149', name: '許閔渝', role: 'USER', password: '1234' },
-  { unit: '產品部', code: 'CAM', id: 'L2502075', name: '李誌剛', role: 'USER', password: '1234' },
-  { unit: '產品部', code: 'CAM', id: 'L2502122', name: '蘇家倫', role: 'USER', password: '1234' },
-  { unit: '產品部', code: 'PD', id: 'L2503233', name: '陳建宏', role: 'USER', password: '1234' },
-  { unit: '產品部', code: 'CAM', id: 'L2503234', name: '林冠言', role: 'USER', password: '1234' },
-  { unit: 'PM部', code: 'PM', id: 'L2300111', name: '陳伯恩', role: 'USER', password: '1234' },
-  { unit: 'PM部', code: 'PM', id: 'L2500586', name: '李靜慧', role: 'USER', password: '1234' },
-  { unit: 'PM部', code: 'PM', id: 'L2500723', name: '賴佩榆', role: 'USER', password: '1234' },
-  { unit: '生管部', code: '生管', id: 'L2300053', name: '徐瑞華', role: 'USER', password: '1234' },
-  { unit: '生管部', code: '生管', id: 'L2300107', name: '黃麗玉', role: 'USER', password: '1234' },
-  { unit: '生管部', code: '生管', id: 'L2501592', name: '蕭宇翔', role: 'USER', password: '1234' },
-  { unit: '生管部', code: '生管', id: 'L2500234', name: '林寬洲', role: 'USER', password: '1234' },
-  { unit: '生管部', code: '生管', id: 'L2500313', name: '郭弘毅', role: 'USER', password: '1234' },
-  { unit: '生管部', code: '生管', id: 'L2501288', name: '姚博文', role: 'USER', password: '1234' },
-  { unit: '生管部', code: '生管', id: 'L2502172', name: '吳姿霖', role: 'USER', password: '1234' },
-  { unit: '生管部', code: '生管', id: 'L2502587', name: '王渘珺', role: 'USER', password: '1234' },
-  { unit: '生管部', code: '生管', id: 'L2502728', name: '黃聰元', role: 'USER', password: '1234' },
-  { unit: '品保部', code: '品保', id: 'L2300035', name: '陳永財', role: 'USER', password: '1234' },
-  { unit: '品保部', code: '品保', id: 'A2442492', name: '曹易彰', role: 'USER', password: '1234' },
-  { unit: '品保部', code: '品保', id: 'L2300109', name: '蔡佩霓', role: 'USER', password: '1234' },
-  { unit: '品保部', code: '品保', id: 'L2500064', name: '戴吟玲', role: 'USER', password: '1234' },
-  { unit: '品保部', code: '品保', id: 'L2300092', name: '黃家緯', role: 'USER', password: '1234' },
-  { unit: '品保部', code: '品保', id: 'L2503232', name: '何易軒', role: 'USER', password: '1234' },
-  { unit: '品保部', code: '品保', id: 'L2503395', name: '鄭郁', role: 'USER', password: '1234' },
-  { unit: '品保部', code: '品保', id: 'L2403169', name: '全葛珈妤', role: 'USER', password: '1234' },
-  { unit: '設備部', code: '設備', id: 'L2500793', name: '鄭靖群', role: 'USER', password: '1234' },
-  { unit: '設備部', code: '設備', id: 'L2500911', name: '黃詠盛', role: 'USER', password: '1234' },
-  { unit: '設備部', code: '設備', id: 'L2500872', name: '陳逸豐', role: 'USER', password: '1234' },
-  { unit: '設備部', code: '設備', id: 'L2501147', name: '陳信宏', role: 'USER', password: '1234' },
-  { unit: '設備部', code: '設備', id: 'L2501664', name: '鍾承勳', role: 'USER', password: '1234' },
-  { unit: '設備部', code: '設備', id: 'L2501938', name: '鄧祐昇', role: 'USER', password: '1234' },
-  { unit: '設備部', code: '設備', id: 'L2501956', name: '林鴻德', role: 'USER', password: '1234' },
-  { unit: '設備部', code: '設備', id: 'L2501957', name: '黃啟盛', role: 'USER', password: '1234' },
-  { unit: '設備部', code: '設備', id: 'L2501955', name: '范家芯', role: 'USER', password: '1234' },
-  { unit: '設備部', code: '設備', id: 'L2501958', name: '張丞佑', role: 'USER', password: '1234' },
-  { unit: '設備部', code: '設備', id: 'L2502124', name: '張耀元', role: 'USER', password: '1234' },
-  { unit: '設備部', code: '設備', id: 'L2502126', name: '顏丞諒', role: 'USER', password: '1234' },
-  { unit: '設備部', code: '設備', id: 'L2502175', name: '張智辰', role: 'USER', password: '1234' },
-  { unit: '設備部', code: '設備', id: 'L2502524', name: '陳冠瑋', role: 'USER', password: '1234' },
-  { unit: '設備部', code: '設備', id: 'L2502586', name: '施詠智', role: 'USER', password: '1234' },
-  { unit: '設備部', code: '設備', id: 'L2503056', name: '劉坤峰', role: 'USER', password: '1234' },
-  { unit: '設備部', code: '設備', id: 'L2503055', name: '林華瀧', role: 'USER', password: '1234' },
-  { unit: '設備部', code: '設備', id: 'L2503054', name: '楊依燈', role: 'USER', password: '1234' },
-  { unit: '設備部', code: '設備', id: 'L2503135', name: '蔡亞軒', role: 'USER', password: '1234' },
-  { unit: '設備部', code: '設備', id: 'L2503444', name: '黃琮傑', role: 'USER', password: '1234' },
-  { unit: '業務部', code: '業務', id: 'L2502766', name: '陳榆榛', role: 'USER', password: '1234' },
-  { unit: '業務部', code: '業務', id: 'L2503061', name: '林妤倩', role: 'USER', password: '1234' },
-  { unit: 'CSD部', code: 'CSD', id: 'L2502200', name: '李映萱', role: 'USER', password: '1234' },
-  { unit: 'CSD部', code: 'CSD', id: 'L2502201', name: '黃鈺舜', role: 'USER', password: '1234' },
-  { unit: 'CSD部', code: 'CSD', id: 'L2502202', name: '柯泊如', role: 'USER', password: '1234' },
-  { unit: '物流應用部', code: '智能物流', id: 'A2300008', name: '邵世軒', role: 'USER', password: '1234' },
-  { unit: '物流應用部', code: '智能物流', id: '32390052', name: '朱宏寬', role: 'USER', password: '1234' },
-  { unit: '物流應用部', code: '智能物流', id: '32291615', name: '董文輝', role: 'USER', password: '1234' },
-  { unit: '物流應用部', code: '智能物流', id: 'A2300009', name: '楊明傑', role: 'USER', password: '1234' },
-  { unit: '自動化部', code: '自動化', id: '82280708', name: '盧幫旺', role: 'USER', password: '1234' },
-  { unit: '自動化部', code: '自動化', id: '82290277', name: '駱宇', role: 'USER', password: '1234' },
 ];
 
 const MEAL_PRICE = 20;
+
+// 假日設定 (包含 2025 與 2026)
+const HOLIDAYS_LIST = [
+  // --- 2025 ---
+  '2025-01-01', 
+  '2025-01-25', '2025-01-26', '2025-01-27', '2025-01-28', 
+  '2025-02-28', 
+  '2025-04-04', '2025-04-05', 
+  '2025-05-01', '2025-05-31', '2025-10-10',
+  // --- 2026 ---
+  '2026-01-01',
+  '2026-02-14', '2026-02-15', '2026-02-16', '2026-02-17', '2026-02-18', '2026-02-19', '2026-02-20', '2026-02-21', '2026-02-22',
+  '2026-02-27', '2026-02-28', '2026-03-01',
+  '2026-04-03', '2026-04-04', '2026-04-05', '2026-04-06',
+  '2026-05-01', '2026-05-02', '2026-05-03',
+  '2026-06-19', '2026-06-20', '2026-06-21',
+  '2026-09-25', '2026-09-26', '2026-09-27', '2026-09-28',
+  '2026-10-09', '2026-10-10', '2026-10-11',
+  '2026-10-24', '2026-10-25', '2026-10-26',
+  '2026-12-25', '2026-12-26', '2026-12-27'
+];
 
 // ==========================================
 // ★★★ 3. 主程式入口 ★★★
@@ -185,90 +69,33 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
 
   if (!db) return <div className="min-h-screen flex items-center justify-center text-red-600 font-bold bg-gray-50">Firebase 連線失敗</div>;
-  
   if (!currentUser) return <LoginScreen onLogin={setCurrentUser} />;
-
-  // ★★★ 強制修改密碼檢查 ★★★
-  // 如果密碼還是預設的 '1234'，就顯示強制修改畫面
-  if (currentUser.password === '1234') {
-    return <ForcePasswordChange user={currentUser} onPasswordChanged={(newPwd) => setCurrentUser({...currentUser, password: newPwd})} />;
-  }
 
   return <MainSystem currentUser={currentUser} onLogout={() => setCurrentUser(null)} />;
 }
 
 // ------------------------------------------------------------------
-// ★★★ 強制修改密碼元件 ★★★
+// 跑馬燈元件 (文字已更新)
 // ------------------------------------------------------------------
-const ForcePasswordChange = ({ user, onPasswordChanged }) => {
-  const [newPwd, setNewPwd] = useState('');
-  const [confirmPwd, setConfirmPwd] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    
-    if (newPwd.length < 4) return setError('密碼至少需要 4 個字元');
-    if (newPwd === '1234') return setError('不能使用預設密碼，請設定新的');
-    if (newPwd !== confirmPwd) return setError('兩次密碼輸入不一致');
-
-    setLoading(true);
-    try {
-      // 更新資料庫
-      await updateDoc(doc(db, 'users', user.id), { password: newPwd });
-      alert('密碼修改成功！請牢記新密碼。');
-      onPasswordChanged(newPwd); // 更新本地狀態，進入系統
-    } catch (e) {
-      setError('修改失敗: ' + e.message);
-    }
-    setLoading(false);
-  };
-
+const Marquee = () => {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4 font-sans text-gray-800">
-      <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm border-l-4 border-yellow-500">
-        <div className="flex justify-center mb-4">
-          <div className="bg-yellow-100 p-3 rounded-full">
-            <KeyRound size={32} className="text-yellow-600" />
-          </div>
-        </div>
-        <h2 className="text-xl font-bold mb-2 text-center">請設定新密碼</h2>
-        <p className="text-sm text-gray-500 mb-6 text-center">為了安全，首次登入或重置後<br/>必須修改預設密碼 (1234)。</p>
-        
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1">新密碼</label>
-            <input 
-              type="password" 
-              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-yellow-400 outline-none" 
-              placeholder="請輸入新密碼" 
-              value={newPwd} 
-              onChange={e => setNewPwd(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1">確認新密碼</label>
-            <input 
-              type="password" 
-              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-yellow-400 outline-none" 
-              placeholder="再次輸入新密碼" 
-              value={confirmPwd} 
-              onChange={e => setConfirmPwd(e.target.value)}
-            />
-          </div>
-
-          {error && <div className="text-red-500 text-sm font-bold bg-red-50 p-2 rounded text-center">{error}</div>}
-          
-          <button 
-            disabled={loading}
-            className="w-full bg-yellow-500 text-white py-3 rounded-xl font-bold hover:bg-yellow-600 transition shadow-lg disabled:opacity-50"
-          >
-            {loading ? '更新中...' : '確認修改並進入系統'}
-          </button>
-        </form>
+    <div className="bg-yellow-100 border-b border-yellow-200 text-yellow-800 overflow-hidden py-2 relative">
+      <div className="flex items-center gap-2 px-4 absolute left-0 bg-yellow-100 z-10 font-bold text-sm">
+        <Megaphone size={16} className="animate-bounce" /> 公告
       </div>
+      <div className="whitespace-nowrap animate-marquee pl-24 text-sm font-medium">
+        🔔 系統公告：假日及國定假日請於「前一個工作天」完成預訂！早餐為預訂「隔日」餐點，請特別留意。 🔔
+      </div>
+      <style>{`
+        @keyframes marquee {
+          0% { transform: translateX(100%); }
+          100% { transform: translateX(-100%); }
+        }
+        .animate-marquee {
+          display: inline-block;
+          animation: marquee 15s linear infinite;
+        }
+      `}</style>
     </div>
   );
 };
@@ -288,21 +115,17 @@ const LoginScreen = ({ onLogin }) => {
     setError('');
     try {
       const inputId = id.toUpperCase().trim();
-
-      // ★★★ 救援模式 ★★★
-      if ((inputId === 'L2500333' || inputId === 'L2300106') && pwd === '1234') {
-        const adminUser = INITIAL_STAFF_DATA.find(u => u.id === inputId) || { id: inputId, name: '救援管理員', role: 'ADMIN', unit: '系統', password: '1234' };
+      if (inputId === 'L2500333' && pwd === '1234') {
+        const adminUser = INITIAL_STAFF_DATA.find(u => u.id === 'L2500333');
         onLogin(adminUser);
         setLoading(false);
         return; 
       }
-
-      // 正常登入
       const docSnap = await getDoc(doc(db, 'users', inputId));
       if (docSnap.exists()) {
         const data = docSnap.data();
         if (data.password === pwd) onLogin(data);
-        else setError('密碼錯誤 (預設 1234，若忘記請找管理員重置)');
+        else setError('密碼錯誤 (預設 1234)');
       } else {
         setError('找不到此工號，請先請管理員新增');
       }
@@ -329,7 +152,7 @@ const LoginScreen = ({ onLogin }) => {
         <button disabled={loading} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 disabled:bg-gray-400 transition shadow-lg shadow-blue-200">
           {loading ? '登入中...' : '登入系統'}
         </button>
-        <div className="mt-6 text-xs text-center text-gray-400">首次使用請用管理員帳號 (L2500333 或 L2300106) 登入並初始化</div>
+        <div className="mt-6 text-xs text-center text-gray-400">首次使用請用管理員帳號 (L2500333) 登入並初始化</div>
       </form>
     </div>
   );
@@ -362,6 +185,7 @@ const MainSystem = ({ currentUser, onLogout }) => {
   return (
     <div className="min-h-screen bg-slate-50 text-gray-800 font-sans pb-10">
       <NavBar user={currentUser} currentView={currentView} onChangeView={setCurrentView} onLogout={onLogout} />
+      <Marquee />
       <div className="max-w-6xl mx-auto p-4">
         {currentView === 'ORDER' && <EmployeeApp user={currentUser} dbOrders={dbOrders} />}
         {currentView === 'SUPPORT' && <SupportDashboard dbOrders={dbOrders} users={users} exportToCSV={exportToCSV} />}
@@ -372,6 +196,9 @@ const MainSystem = ({ currentUser, onLogout }) => {
   );
 };
 
+// ------------------------------------------------------------------
+// 導航列
+// ------------------------------------------------------------------
 const NavBar = ({ user, currentView, onChangeView, onLogout }) => {
   const tabs = {
     ADMIN: ['ORDER', 'SUPPORT', 'HR', 'ADMIN'],
@@ -404,58 +231,169 @@ const NavBar = ({ user, currentView, onChangeView, onLogout }) => {
   );
 };
 
+// ------------------------------------------------------------------
+// 員工點餐與月曆功能
+// ------------------------------------------------------------------
 const EmployeeApp = ({ user, dbOrders }) => {
-  const [date, setDate] = useState(new Date());
-  const dateStr = date.toISOString().split('T')[0];
-  const [loading, setLoading] = useState(false);
-  const [localOrder, setLocalOrder] = useState({ breakfast: false, lunch: false, dinner: false, lateNight: false });
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [viewDate, setViewDate] = useState(new Date()); 
+  const [selectedDateStr, setSelectedDateStr] = useState(null); 
+  const today = new Date();
+  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
+  const [statsStart, setStatsStart] = useState(firstDay);
+  const [statsEnd, setStatsEnd] = useState(lastDay);
 
-  useEffect(() => {
-    const dbData = dbOrders.find(o => o.userId === user.id && o.date === dateStr) || { breakfast: false, lunch: false, dinner: false, lateNight: false };
-    setLocalOrder({
-      breakfast: dbData.breakfast || false,
-      lunch: dbData.lunch || false,
-      dinner: dbData.dinner || false,
-      lateNight: dbData.lateNight || false
+  const myRangeOrders = useMemo(() => {
+    return dbOrders.filter(o => o.userId === user.id && o.date >= statsStart && o.date <= statsEnd);
+  }, [dbOrders, user.id, statsStart, statsEnd]);
+
+  const stats = useMemo(() => {
+    let b = 0, l = 0, d = 0, n = 0;
+    myRangeOrders.forEach(o => {
+      if(o.breakfast) b++; if(o.lunch) l++; if(o.dinner) d++; if(o.lateNight) n++;
     });
-    setHasUnsavedChanges(false);
-  }, [dateStr, dbOrders, user.id]);
+    return { b, l, d, n, total: b+l+d+n, cost: (b+l+d+n)*MEAL_PRICE };
+  }, [myRangeOrders]);
+
+  const calendarDays = useMemo(() => {
+    const year = viewDate.getFullYear();
+    const month = viewDate.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const days = [];
+    for (let i = 0; i < firstDay.getDay(); i++) days.push(null);
+    for (let i = 1; i <= lastDay.getDate(); i++) {
+      const d = new Date(year, month, i);
+      const dStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const order = dbOrders.find(o => o.userId === user.id && o.date === dStr);
+      const hasOrder = order && (order.breakfast || order.lunch || order.dinner || order.lateNight);
+      const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+      const isHoliday = HOLIDAYS_LIST.includes(dStr);
+      days.push({ date: d, dateStr: dStr, dayNum: i, hasOrder, isWeekend, isHoliday, orderData: order });
+    }
+    return days;
+  }, [viewDate, dbOrders, user.id]);
+
+  const changeMonth = (delta) => {
+    const newDate = new Date(viewDate);
+    newDate.setMonth(newDate.getMonth() + delta);
+    setViewDate(newDate);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white p-5 rounded-2xl shadow-sm border border-blue-100">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-3">
+          <h3 className="font-bold text-gray-700 flex items-center gap-2">
+            <User className="text-blue-600" size={20} /> 個人點餐統計
+          </h3>
+          <div className="flex items-center gap-2 text-sm bg-gray-50 p-1.5 rounded-lg border">
+            <input type="date" value={statsStart} onChange={e => setStatsStart(e.target.value)} className="bg-transparent border-none outline-none text-gray-600 w-32" />
+            <span className="text-gray-400">至</span>
+            <input type="date" value={statsEnd} onChange={e => setStatsEnd(e.target.value)} className="bg-transparent border-none outline-none text-gray-600 w-32" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+          <StatBox label="早餐" count={stats.b} icon={<Coffee size={14}/>} />
+          <StatBox label="午餐" count={stats.l} icon={<Sun size={14}/>} />
+          <StatBox label="晚餐" count={stats.d} icon={<Moon size={14}/>} />
+          <StatBox label="宵夜" count={stats.n} icon={<Stars size={14}/>} />
+          <div className="bg-blue-50 p-3 rounded-xl col-span-2 flex justify-between items-center border border-blue-200">
+             <div className="text-xs text-gray-500">期間總額</div>
+             <div className="text-xl font-black text-blue-600">${stats.cost}</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white p-6 rounded-2xl shadow-sm border">
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex gap-2">
+            <button onClick={() => changeMonth(-1)} className="p-2 hover:bg-gray-100 rounded-full"><ChevronLeft /></button>
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              <CalendarIcon className="text-gray-500" />
+              {viewDate.getFullYear()}年 {viewDate.getMonth() + 1}月
+            </h2>
+            <button onClick={() => changeMonth(1)} className="p-2 hover:bg-gray-100 rounded-full"><ChevronRight /></button>
+          </div>
+          <BulkOrderButton user={user} year={viewDate.getFullYear()} month={viewDate.getMonth()} dbOrders={dbOrders} />
+        </div>
+        <div className="grid grid-cols-7 gap-2 text-center text-sm mb-2">
+          {['日','一','二','三','四','五','六'].map(d => (
+            <div key={d} className={`font-bold ${d==='日'||d==='六' ? 'text-red-400' : 'text-gray-500'}`}>{d}</div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-2">
+          {calendarDays.map((day, idx) => {
+            if (!day) return <div key={`empty-${idx}`} />;
+            return (
+              <div 
+                key={day.dateStr}
+                onClick={() => setSelectedDateStr(day.dateStr)}
+                className={`
+                  h-20 border rounded-xl p-2 relative cursor-pointer transition-all hover:shadow-md hover:border-blue-400 flex flex-col justify-between
+                  ${day.isHoliday ? 'bg-red-50 border-red-200' : day.isWeekend ? 'bg-gray-100 text-gray-400' : 'bg-white'}
+                  ${day.dateStr === new Date().toISOString().split('T')[0] ? 'ring-2 ring-blue-500' : ''}
+                `}
+              >
+                <div className="flex justify-between items-start">
+                  <span className={`font-bold ${day.isHoliday ? 'text-red-600' : ''}`}>{day.dayNum}</span>
+                  {day.hasOrder && <div className="w-2 h-2 bg-green-500 rounded-full"></div>}
+                </div>
+                <div className="text-[10px] flex flex-wrap gap-0.5 content-end">
+                   {day.orderData?.breakfast && <span className="bg-orange-100 text-orange-600 px-1 rounded">早</span>}
+                   {day.orderData?.lunch && <span className="bg-yellow-100 text-yellow-600 px-1 rounded">午</span>}
+                   {day.orderData?.dinner && <span className="bg-indigo-100 text-indigo-600 px-1 rounded">晚</span>}
+                   {day.orderData?.lateNight && <span className="bg-purple-100 text-purple-600 px-1 rounded">宵</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      {selectedDateStr && (
+        <OrderModal user={user} dateStr={selectedDateStr} onClose={() => setSelectedDateStr(null)} myOrder={dbOrders.find(o => o.userId === user.id && o.date === selectedDateStr)}/>
+      )}
+    </div>
+  );
+};
+
+const StatBox = ({ label, count, icon }) => (
+  <div className="bg-gray-50 p-3 rounded-xl border flex flex-col items-center justify-center">
+    <div className="text-gray-400 text-xs flex items-center gap-1 mb-1">{icon} {label}</div>
+    <div className="font-black text-lg text-gray-800">{count}</div>
+  </div>
+);
+
+const OrderModal = ({ user, dateStr, onClose, myOrder }) => {
+  const [loading, setLoading] = useState(false);
+  const [tempOrder, setTempOrder] = useState(
+    myOrder ? { ...myOrder } : { breakfast: false, lunch: false, dinner: false, lateNight: false }
+  );
 
   const isLocked = (type) => {
     const now = new Date();
-    const isToday = dateStr === now.toISOString().split('T')[0];
     const isPast = dateStr < now.toISOString().split('T')[0];
+    const isToday = dateStr === now.toISOString().split('T')[0];
     const isPastCutoff = now.getHours() > 8 || (now.getHours() === 8 && now.getMinutes() >= 30);
     if (isPast) return true;
     if (type === 'breakfast') {
-      const diffDays = Math.ceil((new Date(dateStr).getTime() - new Date(now.toISOString().split('T')[0]).getTime()) / 86400000);
-      if (diffDays <= 0) return true;
-      if (diffDays === 1 && isPastCutoff) return true;
-      return false;
+       const diffDays = Math.ceil((new Date(dateStr).getTime() - new Date(now.toISOString().split('T')[0]).getTime()) / 86400000);
+       if (diffDays <= 0) return true; 
+       if (diffDays === 1 && isPastCutoff) return true; 
+       return false;
     }
     return isToday && isPastCutoff;
   };
 
-  const toggleMeal = (type) => {
+  const toggleSelection = (type) => {
     if (isLocked(type)) return;
-    setLocalOrder(prev => {
-      const newState = { ...prev, [type]: !prev[type] };
-      setHasUnsavedChanges(true);
-      return newState;
-    });
+    setTempOrder(prev => ({ ...prev, [type]: !prev[type] }));
   };
 
-  const handleSave = async () => {
+  const handleConfirm = async () => {
     setLoading(true);
-    const newData = { ...localOrder, userId: user.id, date: dateStr, updatedAt: new Date().toISOString() };
-    try { 
-      await setDoc(doc(db, 'orders', `${user.id}_${dateStr}`), newData); 
-      alert('✅ 儲存成功！');
-      setHasUnsavedChanges(false);
-    } catch (e) { 
-      alert('連線失敗'); 
-    }
+    const newData = { ...tempOrder, userId: user.id, date: dateStr, updatedAt: new Date().toISOString() };
+    try { await setDoc(doc(db, 'orders', `${user.id}_${dateStr}`), newData); onClose(); } catch (e) { alert('送出失敗'); }
     setLoading(false);
   };
 
@@ -467,42 +405,95 @@ const EmployeeApp = ({ user, dbOrders }) => {
   ];
 
   return (
-    <div className="max-w-md mx-auto space-y-4 pb-20">
-      <div className="bg-white p-4 rounded-xl shadow-sm flex justify-between items-center border border-gray-100">
-        <button onClick={() => { const d = new Date(date); d.setDate(d.getDate() - 1); setDate(d); }} className="p-2 hover:bg-gray-100 rounded-lg"><ChevronLeft /></button>
-        <div className="text-center"><div className="font-bold text-xl text-blue-600">{dateStr}</div><div className="text-xs text-gray-400">每日 08:30 截單</div></div>
-        <button onClick={() => { const d = new Date(date); d.setDate(d.getDate() + 1); setDate(d); }} className="p-2 hover:bg-gray-100 rounded-lg"><ChevronRight /></button>
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+        <div className="bg-blue-600 p-4 text-white flex justify-between items-center shrink-0">
+          <h3 className="font-bold text-lg flex items-center gap-2"><CalendarIcon size={18} /> {dateStr} 點餐</h3>
+          <button onClick={onClose}><X /></button>
+        </div>
+        <div className="p-4 space-y-3 overflow-y-auto">
+          <div className="text-center text-xs text-gray-500 mb-2">點擊選項進行勾選，最後按下確認送出</div>
+          {mealConfig.map((item) => {
+            const locked = isLocked(item.id);
+            const active = tempOrder[item.id]; 
+            return (
+              <button key={item.id} onClick={() => toggleSelection(item.id)} disabled={locked || loading} className={`w-full p-4 rounded-xl border-2 flex items-center justify-between transition-all ${locked ? 'bg-gray-50 border-gray-100 opacity-50 cursor-not-allowed' : active ? 'bg-blue-50 border-blue-500 shadow-inner' : 'bg-white hover:border-blue-200 shadow-sm'}`}>
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-lg ${active ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-500'}`}>{item.icon}</div>
+                  <div className="text-left">
+                    <div className={`font-bold ${active ? 'text-blue-700' : 'text-gray-700'}`}>{item.label}</div>
+                    <div className="text-xs text-gray-400">{locked ? '已截止' : item.sub}</div>
+                  </div>
+                </div>
+                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${active ? 'border-blue-600 bg-blue-600' : 'border-gray-300'}`}>
+                  {active && <CheckCircle2 size={16} className="text-white" />}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        <div className="p-4 border-t bg-gray-50 flex gap-3 shrink-0">
+          <button onClick={onClose} className="flex-1 py-3 rounded-xl font-bold text-gray-500 hover:bg-gray-200 transition">取消</button>
+          <button onClick={handleConfirm} disabled={loading} className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition disabled:bg-gray-400">{loading ? '處理中...' : '確認送出'}</button>
+        </div>
       </div>
-      
-      <div className="space-y-3">
-        {mealConfig.map((item) => {
-          const locked = isLocked(item.id);
-          const active = localOrder[item.id];
-          return (
-            <button key={item.id} onClick={() => toggleMeal(item.id)} disabled={locked || loading} className={`w-full p-4 rounded-xl border-2 flex items-center justify-between transition-all ${locked ? 'bg-gray-50 border-gray-100 opacity-60 cursor-not-allowed' : active ? 'bg-blue-50 border-blue-500 shadow-md' : 'bg-white hover:border-blue-200'}`}>
-              <div className="flex items-center gap-4">
-                <div className={`p-3 rounded-lg ${active ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-500'}`}>{item.icon}</div>
-                <div className="text-left"><div className={`font-bold text-lg ${active ? 'text-blue-700' : 'text-gray-700'}`}>{item.label} <span className="text-sm font-normal text-gray-400">{item.sub}</span></div><div className="text-xs text-gray-400 font-medium">{locked ? '已截單' : '開放預訂中'}</div></div>
-              </div>
-              {active && <CheckCircle className="text-blue-500" size={24} />}
-            </button>
-          );
-        })}
-      </div>
+    </div>
+  );
+};
 
-      <div className="fixed bottom-4 left-0 right-0 px-4 max-w-md mx-auto z-50">
-        <button 
-          onClick={handleSave} 
-          disabled={!hasUnsavedChanges || loading}
-          className={`w-full py-4 rounded-xl font-bold text-lg shadow-lg flex items-center justify-center gap-2 transition-all ${
-            hasUnsavedChanges 
-              ? 'bg-blue-600 text-white hover:bg-blue-700 scale-100' 
-              : 'bg-gray-200 text-gray-400 scale-95'
-          }`}
-        >
-          {loading ? '處理中...' : hasUnsavedChanges ? <><Save /> 確認送出</> : '已儲存'}
-        </button>
-      </div>
+const BulkOrderButton = ({ user, year, month, dbOrders }) => {
+  const [showMenu, setShowMenu] = useState(false);
+  const [processing, setProcessing] = useState(false);
+
+  const handleBulkOrder = async (mealType) => {
+    const mealLabel = mealType === 'lunch' ? '午餐' : mealType === 'dinner' ? '晚餐' : mealType === 'lateNight' ? '宵夜' : '早餐';
+    if(!confirm(`確定要一次預訂本月所有「平日」的【${mealLabel}】嗎？\n(已截止或假日的日期會自動跳過)`)) return;
+    setProcessing(true);
+    const batch = writeBatch(db);
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    let count = 0;
+    for(let i = 1; i <= lastDay; i++) {
+      const d = new Date(year, month, i);
+      const dStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const dayOfWeek = d.getDay();
+      if (dayOfWeek === 0 || dayOfWeek === 6 || HOLIDAYS_LIST.includes(dStr)) continue;
+      const now = new Date();
+      const isPast = dStr < now.toISOString().split('T')[0];
+      const isToday = dStr === now.toISOString().split('T')[0];
+      const isPastCutoff = now.getHours() > 8 || (now.getHours() === 8 && now.getMinutes() >= 30);
+      let isLocked = false;
+      if (isPast) isLocked = true;
+      if (mealType === 'breakfast') {
+         const diffDays = Math.ceil((d.getTime() - new Date(now.toISOString().split('T')[0]).getTime()) / 86400000);
+         if (diffDays <= 1 && isPastCutoff) isLocked = true;
+      } else {
+         if (isToday && isPastCutoff) isLocked = true;
+      }
+      if (isLocked) continue;
+      const existing = dbOrders.find(o => o.userId === user.id && o.date === dStr) || {};
+      const ref = doc(db, 'orders', `${user.id}_${dStr}`);
+      batch.set(ref, { ...existing, userId: user.id, date: dStr, [mealType]: true, updatedAt: new Date().toISOString() }, { merge: true });
+      count++;
+    }
+    try { await batch.commit(); alert(`成功預訂了 ${count} 天的餐點！`); } catch(e) { alert('批量處理失敗'); }
+    setProcessing(false); setShowMenu(false);
+  };
+
+  return (
+    <div className="relative">
+      <button onClick={() => setShowMenu(!showMenu)} disabled={processing} className="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-blue-700 shadow-md transition">
+        <CalendarIcon size={16} /> {processing ? '處理中...' : '一鍵預訂平日'}
+      </button>
+      {showMenu && (
+        <div className="absolute right-0 top-12 bg-white rounded-xl shadow-xl border w-48 overflow-hidden z-20 animate-in fade-in slide-in-from-top-2">
+          <div className="p-2 text-xs text-gray-400 bg-gray-50 border-b">選擇要批量預訂的餐點</div>
+          <button onClick={() => handleBulkOrder('lunch')} className="w-full text-left px-4 py-3 hover:bg-blue-50 text-sm font-bold text-gray-700 flex items-center gap-2"><Sun size={14} className="text-orange-500"/> 平日午餐</button>
+          <button onClick={() => handleBulkOrder('dinner')} className="w-full text-left px-4 py-3 hover:bg-blue-50 text-sm font-bold text-gray-700 flex items-center gap-2"><Moon size={14} className="text-indigo-500"/> 平日晚餐</button>
+          <button onClick={() => handleBulkOrder('lateNight')} className="w-full text-left px-4 py-3 hover:bg-blue-50 text-sm font-bold text-gray-700 flex items-center gap-2"><Stars size={14} className="text-purple-500"/> 平日宵夜</button>
+          <button onClick={() => handleBulkOrder('breakfast')} className="w-full text-left px-4 py-3 hover:bg-blue-50 text-sm font-bold text-gray-700 flex items-center gap-2 border-t"><Coffee size={14} className="text-brown-500"/> 平日早餐</button>
+        </div>
+      )}
+      {showMenu && <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />}
     </div>
   );
 };
@@ -513,7 +504,6 @@ const SupportDashboard = ({ dbOrders, users, exportToCSV }) => {
   const [detail, setDetail] = useState(null);
   const getList = (type) => dbOrders.filter((o) => o.date === dateStr && o[type]).map((o) => users.find((u) => u.id === o.userId) || { name: '未知', id: o.userId, unit: '?', code: '?' });
   const meals = [{ id: 'breakfast', label: '早餐' }, { id: 'lunch', label: '午餐' }, { id: 'dinner', label: '晚餐' }, { id: 'lateNight', label: '宵夜' }];
-
   return (
     <div className="space-y-6">
       <div className="bg-white p-4 rounded-2xl border shadow-sm flex justify-between items-center">
@@ -526,24 +516,15 @@ const SupportDashboard = ({ dbOrders, users, exportToCSV }) => {
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {meals.map((m) => (
-          <div key={m.id} onClick={() => setDetail(m.id)} className="bg-white p-6 rounded-2xl border cursor-pointer hover:shadow-md transition text-center group">
-            <div className="text-gray-500 font-bold mb-2">{m.label}</div>
-            <div className="text-4xl font-black text-gray-800 group-hover:scale-110 transition-transform">{getList(m.id).length}</div>
-            <div className="text-xs text-blue-500 mt-2 font-bold">點擊查看詳情</div>
-          </div>
+          <div key={m.id} onClick={() => setDetail(m.id)} className="bg-white p-6 rounded-2xl border cursor-pointer hover:shadow-md transition text-center group"><div className="text-gray-500 font-bold mb-2">{m.label}</div><div className="text-4xl font-black text-gray-800 group-hover:scale-110 transition-transform">{getList(m.id).length}</div><div className="text-xs text-blue-500 mt-2 font-bold">點擊查看詳情</div></div>
         ))}
       </div>
       {detail && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-lg rounded-2xl flex flex-col max-h-[80vh] shadow-2xl">
             <div className="p-4 border-b flex justify-between items-center"><h3 className="font-bold text-lg">{dateStr} {meals.find((m) => m.id === detail)?.label}名單</h3><button onClick={() => setDetail(null)} className="p-2 hover:bg-gray-100 rounded-full"><X /></button></div>
-            <div className="p-4 overflow-y-auto flex-1 grid grid-cols-2 gap-2">
-              {getList(detail).map((u) => <div key={u.id} className="text-sm p-2 bg-gray-50 border rounded flex justify-between"><span className="font-mono text-gray-600">{u.id}</span><span className="font-bold">{u.name}</span></div>)}
-              {getList(detail).length === 0 && <div className="col-span-2 text-center text-gray-400 py-4">無人預訂</div>}
-            </div>
-            <div className="p-4 border-t bg-gray-50 rounded-b-2xl">
-              <button onClick={() => exportToCSV(getList(detail).map((u) => [u.id, u.name, u.unit, u.code, dateStr, detail]), ['工號', '姓名', '部門', '代號', '日期', '餐別'], `支援課_${detail}`)} className="w-full bg-green-600 text-white py-3 rounded-lg font-bold flex justify-center gap-2 hover:bg-green-700 shadow-lg shadow-green-200"><Download /> 匯出 Excel</button>
-            </div>
+            <div className="p-4 overflow-y-auto flex-1 grid grid-cols-2 gap-2">{getList(detail).map((u) => <div key={u.id} className="text-sm p-2 bg-gray-50 border rounded flex justify-between"><span className="font-mono text-gray-600">{u.id}</span><span className="font-bold">{u.name}</span></div>)}{getList(detail).length === 0 && <div className="col-span-2 text-center text-gray-400 py-4">無人預訂</div>}</div>
+            <div className="p-4 border-t bg-gray-50 rounded-b-2xl"><button onClick={() => exportToCSV(getList(detail).map((u) => [u.id, u.name, u.unit, u.code, dateStr, detail]), ['工號', '姓名', '部門', '代號', '日期', '餐別'], `支援課_${detail}`)} className="w-full bg-green-600 text-white py-3 rounded-lg font-bold flex justify-center gap-2 hover:bg-green-700 shadow-lg shadow-green-200"><Download /> 匯出 Excel</button></div>
           </div>
         </div>
       )}
@@ -554,7 +535,9 @@ const SupportDashboard = ({ dbOrders, users, exportToCSV }) => {
 const HRReportDashboard = ({ dbOrders, users, exportToCSV }) => {
   const [start, setStart] = useState('2025-05-01');
   const [end, setEnd] = useState('2025-05-31');
+  const [filterId, setFilterId] = useState('');
   const report = useMemo(() => users.map((u) => {
+    if (filterId && !u.id.includes(filterId.toUpperCase())) return null;
     const orders = dbOrders.filter((o) => o.userId === u.id && o.date >= start && o.date <= end);
     const b = orders.filter((o) => o.breakfast).length;
     const l = orders.filter((o) => o.lunch).length;
@@ -562,156 +545,262 @@ const HRReportDashboard = ({ dbOrders, users, exportToCSV }) => {
     const n = orders.filter((o) => o.lateNight).length;
     const total = b + l + d + n;
     return { ...u, b, l, d, n, total, cost: total * MEAL_PRICE };
-  }).filter((r) => r.total > 0), [dbOrders, users, start, end]);
-
-  const handleExport = () => {
-    exportToCSV(report.map((r) => [r.id, r.name, r.unit, r.b, r.l, r.d, r.n, r.total, r.cost]), ['工號', '姓名', '部門', '早餐', '午餐', '晚餐', '宵夜', '總餐數', '金額'], `HR報表_${start}_${end}`);
-  };
-
+  }).filter((r) => r !== null && r.total > 0), [dbOrders, users, start, end, filterId]);
+  const handleExport = () => { exportToCSV(report.map((r) => [r.id, r.name, r.unit, r.b, r.l, r.d, r.n, r.total, r.cost]), ['工號', '姓名', '部門', '早餐', '午餐', '晚餐', '宵夜', '總餐數', '金額'], `HR報表_${start}_${end}`); };
   return (
     <div className="bg-white p-6 rounded-2xl border shadow-sm space-y-4">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <h2 className="text-xl font-bold flex gap-2 items-center"><DollarSign className="text-green-600" /> 人資扣款報表</h2>
-        <button onClick={handleExport} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold flex gap-2 hover:bg-green-700 shadow-md"><Download size={16} /> 匯出報表</button>
-      </div>
-      <div className="flex gap-2 items-center bg-gray-50 p-2 rounded-lg w-fit">
-        <input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="border p-2 rounded-md" />
-        <span className="text-gray-400">至</span>
-        <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} className="border p-2 rounded-md" />
-      </div>
-      <div className="overflow-x-auto border rounded-lg">
-        <table className="w-full text-sm text-left">
-          <thead className="bg-gray-100 text-gray-600 font-bold"><tr><th className="p-3">工號</th><th className="p-3">姓名</th><th className="p-3 text-center">早</th><th className="p-3 text-center">午</th><th className="p-3 text-center">晚</th><th className="p-3 text-center">宵</th><th className="p-3 text-right">總餐數</th><th className="p-3 text-right">金額</th></tr></thead>
-          <tbody className="divide-y divide-gray-100">
-            {report.map((r) => (<tr key={r.id} className="hover:bg-gray-50 transition"><td className="p-3 font-mono">{r.id}</td><td className="p-3 font-bold">{r.name}</td><td className="p-3 text-center text-gray-500">{r.b}</td><td className="p-3 text-center text-gray-500">{r.l}</td><td className="p-3 text-center text-gray-500">{r.d}</td><td className="p-3 text-center text-gray-500">{r.n}</td><td className="p-3 text-right font-medium">{r.total}</td><td className="p-3 text-right text-green-600 font-bold">${r.cost}</td></tr>))}
-            {report.length === 0 && <tr><td colSpan="8" className="p-6 text-center text-gray-400">區間內無訂餐資料</td></tr>}
-          </tbody>
-        </table>
-      </div>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4"><h2 className="text-xl font-bold flex gap-2 items-center"><DollarSign className="text-green-600" /> 人資扣款報表</h2><button onClick={handleExport} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold flex gap-2 hover:bg-green-700 shadow-md"><Download size={16} /> 匯出報表</button></div>
+      <div className="flex flex-wrap gap-4 items-center"><div className="flex gap-2 items-center bg-gray-50 p-2 rounded-lg border"><input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="bg-transparent outline-none text-gray-700" /><span className="text-gray-400">至</span><input type="date" value={end} onChange={(e) => setEnd(e.target.value)} className="bg-transparent outline-none text-gray-700" /></div><div className="flex gap-2 items-center bg-gray-50 p-2 rounded-lg border px-3"><Search size={16} className="text-gray-400"/><input placeholder="篩選工號 (例如 L25)" value={filterId} onChange={(e) => setFilterId(e.target.value)} className="bg-transparent outline-none text-gray-700 w-40 uppercase placeholder:text-gray-400 text-sm font-bold" />{filterId && <button onClick={() => setFilterId('')} className="text-gray-400 hover:text-red-500"><X size={14}/></button>}</div></div>
+      <div className="overflow-x-auto border rounded-lg"><table className="w-full text-sm text-left"><thead className="bg-gray-100 text-gray-600 font-bold"><tr><th className="p-3">工號</th><th className="p-3">姓名</th><th className="p-3 text-center">早</th><th className="p-3 text-center">午</th><th className="p-3 text-center">晚</th><th className="p-3 text-center">宵</th><th className="p-3 text-right">總餐數</th><th className="p-3 text-right">金額</th></tr></thead><tbody className="divide-y divide-gray-100">{report.map((r) => (<tr key={r.id} className="hover:bg-gray-50 transition"><td className="p-3 font-mono">{r.id}</td><td className="p-3 font-bold">{r.name}</td><td className="p-3 text-center text-gray-500">{r.b}</td><td className="p-3 text-center text-gray-500">{r.l}</td><td className="p-3 text-center text-gray-500">{r.d}</td><td className="p-3 text-center text-gray-500">{r.n}</td><td className="p-3 text-right font-medium">{r.total}</td><td className="p-3 text-right text-green-600 font-bold">${r.cost}</td></tr>))}{report.length === 0 && <tr><td colSpan="8" className="p-6 text-center text-gray-400">區間內無訂餐資料</td></tr>}</tbody></table></div>
     </div>
   );
 };
 
+// ------------------------------------------------------------------
+// ★ 功能 4: 管理後台 (含 Excel 匯入、搜尋、權限切換)
+// ------------------------------------------------------------------
 const AdminPanel = ({ users }) => {
   const [newUser, setNewUser] = useState({ id: '', name: '', unit: '', role: 'USER', password: '1234' });
   const [loading, setLoading] = useState(false);
-  const [bulkText, setBulkText] = useState('');
-  
-  // 1. 單一新增
-  const addUser = async () => { if (!newUser.id) return; await setDoc(doc(db, 'users', newUser.id.toUpperCase()), newUser); alert('新增成功'); setNewUser({ id: '', name: '', unit: '', role: 'USER', password: '1234' }); };
-  
-  // 2. 刪除
-  const deleteUser = async (id) => { if (confirm('確定刪除?')) await deleteDoc(doc(db, 'users', id)); };
-  
-  // 3. ★★★ 重置密碼 (忘記密碼用) ★★★
-  const resetPassword = async (id, name) => {
-    if (!confirm(`確定要重置 ${name} (${id}) 的密碼嗎？\n密碼將變回 1234，並強制他在下次登入時修改。`)) return;
-    try {
-      await updateDoc(doc(db, 'users', id), { password: '1234' });
-      alert('密碼重置成功！');
-    } catch(e) {
-      alert('重置失敗: ' + e.message);
-    }
-  };
-  
-  // 4. 系統初始化
+  const [bulkText, setBulkText] = useState(''); 
+  const [searchTerm, setSearchTerm] = useState('');
+  const fileInputRef = useRef(null);
+
+  // 1. 初始化資料庫
   const initDB = async () => { 
-    if (!confirm('【警告】確定要還原成預設名單？這將會覆蓋現有資料！')) return; 
+    if (!confirm('確定初始化？')) return; 
     setLoading(true); 
-    try { 
-      let count = 0;
-      for (const s of INITIAL_STAFF_DATA) { 
-        await setDoc(doc(db, 'users', s.id), s); 
-        count++;
-      } 
-      alert(`成功還原 ${count} 筆預設資料`); 
-    } catch (e) { alert('失敗: ' + e.message); } 
+    try { for (const s of INITIAL_STAFF_DATA) { await setDoc(doc(db, 'users', s.id), s); } alert('成功寫入'); } catch (e) { alert('失敗: ' + e.message); } 
     setLoading(false); 
   };
 
-  // 5. 批量匯入
-  const handleBulkImport = async () => {
-    if (!bulkText) return alert('請先貼上資料');
-    if (!confirm('確定匯入？重複的工號將會被更新。')) return;
-    
-    setLoading(true);
-    try {
-      const rows = bulkText.trim().split('\n');
-      let successCount = 0;
-      let errorCount = 0;
+  // 2. 單筆新增
+  const addUser = async () => { 
+    if (!newUser.id) return; 
+    await setDoc(doc(db, 'users', newUser.id.toUpperCase()), newUser); 
+    alert('新增成功'); 
+    setNewUser({ id: '', name: '', unit: '', role: 'USER', password: '1234' }); 
+  };
 
-      for (const row of rows) {
-        const cols = row.split('\t').map(c => c.trim());
-        if (cols.length >= 3) {
-          const unit = cols[0];
-          const id = cols[1]?.toUpperCase();
-          const name = cols[2];
-          
-          if (id && name) {
-            const userData = { unit: unit, id: id, name: name, role: 'USER', password: '1234' };
-            await setDoc(doc(db, 'users', id), userData);
+  // 3. 刪除
+  const deleteUser = async (id) => { 
+    if (confirm('確定刪除?')) await deleteDoc(doc(db, 'users', id)); 
+  };
+
+  // 4. 更新權限
+  const updateUserRole = async (id, newRole) => {
+    try {
+      await updateDoc(doc(db, 'users', id), { role: newRole });
+    } catch (e) {
+      alert('更新失敗');
+    }
+  };
+
+  // 5. 下載 Excel 範本
+  const handleDownloadTemplate = () => {
+    const ws = XLSX.utils.json_to_sheet([
+      { id: 'L26001', name: '王小明', unit: '研發部', role: 'USER' },
+      { id: 'L26002', name: '李大華', unit: '業務部', role: 'USER' }
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "員工資料匯入範本");
+    XLSX.writeFile(wb, "員工匯入範本.xlsx");
+  };
+
+  // 6. 處理 Excel 上傳
+  const handleExcelUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      setLoading(true);
+      try {
+        const bstr = evt.target.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws);
+
+        let successCount = 0;
+        const batch = writeBatch(db);
+        
+        // 批次寫入 (Firebase Batch 上限 500 筆，這裡做簡單處理)
+        data.forEach((row) => {
+          // 支援中文欄位名或英文欄位名
+          const uid = row['id'] || row['工號'] || row['ID'];
+          const uname = row['name'] || row['姓名'] || row['NAME'];
+          const uunit = row['unit'] || row['部門'] || row['UNIT'];
+          const urole = row['role'] || row['權限'] || 'USER';
+
+          if (uid && uname) {
+            const idStr = String(uid).trim().toUpperCase();
+            const docRef = doc(db, 'users', idStr);
+            batch.set(docRef, {
+              id: idStr,
+              name: String(uname).trim(),
+              unit: String(uunit || '').trim(),
+              role: String(urole).trim().toUpperCase(),
+              password: '1234'
+            });
             successCount++;
-          } else { errorCount++; }
-        } else { errorCount++; }
+          }
+        });
+
+        await batch.commit();
+        alert(`成功匯入 ${successCount} 筆資料！`);
+      } catch (err) {
+        console.error(err);
+        alert('匯入失敗，請確認檔案格式');
       }
-      alert(`匯入完成！\n成功: ${successCount} 筆\n忽略/格式錯誤: ${errorCount} 筆`);
+      setLoading(false);
+      // 清空 input 讓同個檔案可以再選一次
+      if(fileInputRef.current) fileInputRef.current.value = '';
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  // 7. 處理純文字批量匯入
+  const handleTextBulkImport = async () => {
+    if (!bulkText) return;
+    const rows = bulkText.split('\n').filter(r => r.trim());
+    if (!confirm(`確定要新增這 ${rows.length} 筆資料嗎？`)) return;
+    setLoading(true);
+    let successCount = 0;
+    try {
+      for (const row of rows) {
+        const cols = row.split(/,|，| /); 
+        if (cols.length < 3) continue;
+        const [uid, uname, uunit] = cols;
+        const id = uid.trim().toUpperCase();
+        if(!id) continue;
+        await setDoc(doc(db, 'users', id), { id, name: uname.trim(), unit: uunit.trim(), role: 'USER', password: '1234' });
+        successCount++;
+      }
+      alert(`成功匯入 ${successCount} 筆資料`);
       setBulkText('');
-    } catch (e) { alert('匯入發生錯誤: ' + e.message); }
+    } catch(e) { alert('匯入失敗: ' + e.message); }
     setLoading(false);
   };
+
+  // 篩選顯示的使用者
+  const filteredUsers = useMemo(() => {
+    return users.filter(u => 
+      u.id.includes(searchTerm.toUpperCase()) || 
+      u.name.includes(searchTerm) ||
+      u.unit.includes(searchTerm)
+    );
+  }, [users, searchTerm]);
 
   return (
     <div className="space-y-6">
       {/* 批量匯入區塊 */}
       <div className="bg-white p-6 rounded-2xl border shadow-sm">
-        <h2 className="font-bold text-lg mb-4 flex gap-2 items-center text-blue-800">
-          <FileText /> 批量匯入員工 (Excel 複製貼上)
-        </h2>
-        <textarea 
-          value={bulkText}
-          onChange={(e) => setBulkText(e.target.value)}
-          placeholder={`範例格式：\n製造部\tL123456\t王小明\n產品部\tL654321\t李小華`}
-          className="w-full h-40 p-3 border rounded-lg font-mono text-sm mb-3 bg-gray-50 focus:bg-white transition"
-        />
-        <button onClick={handleBulkImport} disabled={loading} className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700 disabled:bg-gray-400 transition shadow-md w-full md:w-auto">
-          {loading ? '匯入處理中...' : '開始匯入資料'}
-        </button>
+        <h2 className="font-bold text-lg mb-4 flex gap-2 items-center"><FileUp /> 批量匯入員工</h2>
+        
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* 左邊：Excel 上傳 */}
+          <div className="border p-4 rounded-xl bg-gray-50 space-y-4">
+            <h3 className="font-bold text-gray-700 flex items-center gap-2">方式一：Excel 檔案上傳</h3>
+            <div className="flex gap-2">
+              <button onClick={handleDownloadTemplate} className="text-xs bg-white border px-2 py-1 rounded flex items-center gap-1 hover:bg-gray-100">
+                <FileDown size={12}/> 下載範本
+              </button>
+            </div>
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:bg-blue-50 transition relative cursor-pointer">
+              <input 
+                type="file" 
+                accept=".xlsx, .xls, .csv"
+                ref={fileInputRef}
+                onChange={handleExcelUpload}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              />
+              <div className="flex flex-col items-center text-gray-400">
+                <Upload size={32} className="mb-2"/>
+                <span className="text-sm">點擊或拖曳 Excel 檔案至此</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 右邊：純文字貼上 */}
+          <div className="border p-4 rounded-xl bg-gray-50 space-y-4">
+            <h3 className="font-bold text-gray-700">方式二：純文字貼上</h3>
+            <textarea 
+              placeholder="格式：工號,姓名,部門&#10;L25001,王大明,研發部"
+              className="w-full border p-3 rounded-lg h-32 text-sm font-mono"
+              value={bulkText}
+              onChange={(e) => setBulkText(e.target.value)}
+            />
+            <button 
+              onClick={handleTextBulkImport}
+              disabled={loading || !bulkText}
+              className="w-full bg-green-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-green-700 disabled:bg-gray-400 transition"
+            >
+              {loading ? '處理中...' : '確認匯入文字'}
+            </button>
+          </div>
+        </div>
       </div>
 
       <div className="bg-white p-6 rounded-2xl border shadow-sm">
-        <h2 className="font-bold text-lg mb-4 flex gap-2 items-center"><UserPlus /> 人員管理</h2>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4 bg-gray-50 p-3 rounded-xl">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="font-bold text-lg flex gap-2 items-center"><UserPlus /> 人員管理</h2>
+          {/* 搜尋框 */}
+          <div className="flex items-center gap-2 bg-gray-100 px-3 py-1.5 rounded-lg">
+            <Search size={16} className="text-gray-400"/>
+            <input 
+              placeholder="搜尋工號或姓名..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="bg-transparent outline-none text-sm w-40"
+            />
+          </div>
+        </div>
+
+        {/* 單筆新增 */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4 bg-gray-50 p-3 rounded-xl border">
           <input placeholder="工號" value={newUser.id} onChange={(e) => setNewUser({ ...newUser, id: e.target.value.toUpperCase() })} className="border p-2 rounded" />
           <input placeholder="姓名" value={newUser.name} onChange={(e) => setNewUser({ ...newUser, name: e.target.value })} className="border p-2 rounded" />
           <input placeholder="部門" value={newUser.unit} onChange={(e) => setNewUser({ ...newUser, unit: e.target.value })} className="border p-2 rounded" />
           <select value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })} className="border p-2 rounded"><option value="USER">員工</option><option value="SUPPORT">支援課</option><option value="HR">人資</option><option value="ADMIN">管理</option></select>
-          <button onClick={addUser} className="bg-green-600 text-white rounded font-bold hover:bg-green-700">單筆新增</button>
+          <button onClick={addUser} className="bg-blue-600 text-white rounded font-bold hover:bg-blue-700">單筆新增</button>
         </div>
+
+        {/* 人員列表 */}
         <div className="h-96 overflow-y-auto border rounded divide-y">
-          {users.map((u) => (
-            <div key={u.id} className="flex justify-between p-3 hover:bg-gray-50 items-center">
-              <span className="w-24 font-mono">{u.id}</span>
+          <div className="flex justify-between p-3 bg-gray-100 font-bold text-xs text-gray-500 sticky top-0">
+            <span className="w-24">工號</span>
+            <span className="w-20">姓名</span>
+            <span className="w-24">部門</span>
+            <span className="w-28 text-center">權限 (點選切換)</span>
+            <span className="w-10">刪除</span>
+          </div>
+          {filteredUsers.map((u) => (
+            <div key={u.id} className="flex justify-between p-3 hover:bg-gray-50 items-center text-sm">
+              <span className="w-24 font-mono font-bold text-blue-600">{u.id}</span>
               <span className="w-20 font-bold">{u.name}</span>
-              <span className="w-24 text-xs text-gray-500">{u.unit}</span>
-              <span className="w-20 text-xs bg-gray-200 px-2 py-1 rounded text-center">{u.role}</span>
-              <div className="flex gap-2">
-                {/* 重置密碼按鈕 */}
-                <button onClick={() => resetPassword(u.id, u.name)} className="text-gray-400 hover:text-orange-500" title="重置密碼為 1234">
-                  <RefreshCcw size={16} />
-                </button>
-                {/* 刪除按鈕 */}
-                <button onClick={() => deleteUser(u.id)} className="text-gray-400 hover:text-red-500" title="刪除員工">
-                  <Trash2 size={16} />
-                </button>
+              <span className="w-24 text-gray-500">{u.unit}</span>
+              <div className="w-28 text-center">
+                <select 
+                  value={u.role} 
+                  onChange={(e) => updateUserRole(u.id, e.target.value)}
+                  className={`text-xs px-2 py-1 rounded cursor-pointer border-none outline-none font-bold
+                    ${u.role === 'ADMIN' ? 'bg-red-100 text-red-600' : 
+                      u.role === 'HR' ? 'bg-green-100 text-green-600' :
+                      u.role === 'SUPPORT' ? 'bg-purple-100 text-purple-600' : 'bg-gray-100 text-gray-600'}
+                  `}
+                >
+                  <option value="USER">USER</option>
+                  <option value="SUPPORT">SUPPORT</option>
+                  <option value="HR">HR</option>
+                  <option value="ADMIN">ADMIN</option>
+                </select>
               </div>
+              <button onClick={() => deleteUser(u.id)} className="w-10 text-gray-400 hover:text-red-500 flex justify-center"><Trash2 size={16} /></button>
             </div>
           ))}
+          {filteredUsers.length === 0 && <div className="p-4 text-center text-gray-400">查無資料</div>}
         </div>
-      </div>
-
-      <div className="bg-white p-6 rounded-2xl border shadow-sm opacity-70 hover:opacity-100 transition">
-        <h2 className="font-bold text-lg mb-4 flex gap-2 items-center text-gray-500"><AlertTriangle /> 危險區域</h2>
-        <button onClick={initDB} disabled={loading} className="bg-red-100 text-red-600 px-4 py-2 rounded-lg font-bold hover:bg-red-200 transition flex items-center gap-2 text-sm">{loading ? '處理中...' : '還原預設名單 (會覆蓋資料)'}</button>
       </div>
     </div>
   );
