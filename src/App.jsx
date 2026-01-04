@@ -3,16 +3,16 @@ import {
   ChevronLeft, ChevronRight, Coffee, Sun, Moon, Stars,
   Briefcase, DollarSign, Settings, UserPlus, Download, X,
   Trash2, Database, LogOut, User, Megaphone, Calendar as CalendarIcon,
-  CheckCircle2, Search, FileUp, FileDown, Upload
+  CheckCircle2, Search, FileUp, FileDown, Upload, LockKeyhole
 } from 'lucide-react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
   getFirestore, collection, doc, getDoc, setDoc, updateDoc, onSnapshot, deleteDoc, writeBatch
 } from 'firebase/firestore';
-import * as XLSX from 'xlsx'; // 引入 Excel 處理套件
+import * as XLSX from 'xlsx';
 
 // ==========================================
-// ★★★ 1. Firebase 設定區 (已填入你的金鑰) ★★★
+// ★★★ 1. Firebase 設定區 ★★★
 // ==========================================
 const firebaseConfig = {
   apiKey: 'AIzaSyBqfmLMeTdDbMrHs1ZFYWOcO4V3WDez5TY',
@@ -41,15 +41,10 @@ const INITIAL_STAFF_DATA = [
 
 const MEAL_PRICE = 20;
 
-// 假日設定 (包含 2025 與 2026)
+// 假日設定
 const HOLIDAYS_LIST = [
-  // --- 2025 ---
-  '2025-01-01', 
-  '2025-01-25', '2025-01-26', '2025-01-27', '2025-01-28', 
-  '2025-02-28', 
-  '2025-04-04', '2025-04-05', 
-  '2025-05-01', '2025-05-31', '2025-10-10',
-  // --- 2026 ---
+  '2025-01-01', '2025-01-25', '2025-01-26', '2025-01-27', '2025-01-28', '2025-02-28', 
+  '2025-04-04', '2025-04-05', '2025-05-01', '2025-05-31', '2025-10-10',
   '2026-01-01',
   '2026-02-14', '2026-02-15', '2026-02-16', '2026-02-17', '2026-02-18', '2026-02-19', '2026-02-20', '2026-02-21', '2026-02-22',
   '2026-02-27', '2026-02-28', '2026-03-01',
@@ -69,13 +64,76 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
 
   if (!db) return <div className="min-h-screen flex items-center justify-center text-red-600 font-bold bg-gray-50">Firebase 連線失敗</div>;
+  
+  // 尚未登入
   if (!currentUser) return <LoginScreen onLogin={setCurrentUser} />;
 
+  // 登入後，檢查密碼是否為預設值 (1234)
+  // 注意：救援帳號 (L2500333) 不強制改密碼，避免被鎖死，除非它真的存在 DB 裡
+  if (currentUser.password === '1234') {
+    return <ForcePasswordChange user={currentUser} onPasswordChanged={(newPwd) => setCurrentUser({...currentUser, password: newPwd})} />;
+  }
+
+  // 正常進入系統
   return <MainSystem currentUser={currentUser} onLogout={() => setCurrentUser(null)} />;
 }
 
 // ------------------------------------------------------------------
-// 跑馬燈元件 (文字已更新)
+// 強制修改密碼元件 (新功能)
+// ------------------------------------------------------------------
+const ForcePasswordChange = ({ user, onPasswordChanged }) => {
+  const [p1, setP1] = useState('');
+  const [p2, setP2] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (p1 !== p2) return alert('兩次密碼輸入不一致');
+    if (p1.length < 4) return alert('密碼長度請至少 4 碼');
+    if (p1 === '1234') return alert('新密碼不能是預設密碼 1234');
+
+    setLoading(true);
+    try {
+      // 更新資料庫
+      await updateDoc(doc(db, 'users', user.id), { password: p1 });
+      alert('密碼修改成功！請牢記新密碼。');
+      onPasswordChanged(p1); // 更新本地狀態進入系統
+    } catch (error) {
+      console.error(error);
+      alert('修改失敗，請確認網路連線');
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4 font-sans text-gray-800">
+      <form onSubmit={handleSubmit} className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm border-t-4 border-red-500">
+        <h2 className="text-xl font-bold mb-2 text-center text-red-600 flex justify-center items-center gap-2">
+          <LockKeyhole /> 安全性提醒
+        </h2>
+        <p className="text-sm text-gray-500 mb-6 text-center">
+          您目前使用的是預設密碼。<br/>為了帳號安全，初次登入請設定新密碼。
+        </p>
+        
+        <div className="mb-4">
+          <label className="block text-xs font-bold text-gray-500 mb-1">新密碼</label>
+          <input className="w-full p-3 border rounded-lg" type="password" placeholder="請輸入新密碼" value={p1} onChange={(e) => setP1(e.target.value)} required />
+        </div>
+        <div className="mb-6">
+          <label className="block text-xs font-bold text-gray-500 mb-1">確認新密碼</label>
+          <input className="w-full p-3 border rounded-lg" type="password" placeholder="再次輸入新密碼" value={p2} onChange={(e) => setP2(e.target.value)} required />
+        </div>
+        
+        <button disabled={loading} className="w-full bg-red-600 text-white py-3 rounded-xl font-bold hover:bg-red-700 disabled:bg-gray-400 transition shadow-lg">
+          {loading ? '更新中...' : '確認修改並登入'}
+        </button>
+      </form>
+    </div>
+  );
+};
+
+// ------------------------------------------------------------------
+// 跑馬燈元件
 // ------------------------------------------------------------------
 const Marquee = () => {
   return (
@@ -115,12 +173,14 @@ const LoginScreen = ({ onLogin }) => {
     setError('');
     try {
       const inputId = id.toUpperCase().trim();
+      // ★ 救援模式 (僅當 DB 連不上或需要緊急進入時使用，救援帳號資料是靜態的)
       if (inputId === 'L2500333' && pwd === '1234') {
         const adminUser = INITIAL_STAFF_DATA.find(u => u.id === 'L2500333');
         onLogin(adminUser);
         setLoading(false);
         return; 
       }
+      
       const docSnap = await getDoc(doc(db, 'users', inputId));
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -196,9 +256,6 @@ const MainSystem = ({ currentUser, onLogout }) => {
   );
 };
 
-// ------------------------------------------------------------------
-// 導航列
-// ------------------------------------------------------------------
 const NavBar = ({ user, currentView, onChangeView, onLogout }) => {
   const tabs = {
     ADMIN: ['ORDER', 'SUPPORT', 'HR', 'ADMIN'],
@@ -232,7 +289,7 @@ const NavBar = ({ user, currentView, onChangeView, onLogout }) => {
 };
 
 // ------------------------------------------------------------------
-// 員工點餐與月曆功能
+// 員工點餐與月曆功能 (★ 手機版 UI 優化：改成 2x2 小方格)
 // ------------------------------------------------------------------
 const EmployeeApp = ({ user, dbOrders }) => {
   const [viewDate, setViewDate] = useState(new Date()); 
@@ -330,20 +387,23 @@ const EmployeeApp = ({ user, dbOrders }) => {
                 key={day.dateStr}
                 onClick={() => setSelectedDateStr(day.dateStr)}
                 className={`
-                  h-20 border rounded-xl p-2 relative cursor-pointer transition-all hover:shadow-md hover:border-blue-400 flex flex-col justify-between
+                  aspect-square border rounded-xl p-1 relative cursor-pointer transition-all hover:shadow-md hover:border-blue-400 flex flex-col justify-between
                   ${day.isHoliday ? 'bg-red-50 border-red-200' : day.isWeekend ? 'bg-gray-100 text-gray-400' : 'bg-white'}
                   ${day.dateStr === new Date().toISOString().split('T')[0] ? 'ring-2 ring-blue-500' : ''}
                 `}
               >
-                <div className="flex justify-between items-start">
-                  <span className={`font-bold ${day.isHoliday ? 'text-red-600' : ''}`}>{day.dayNum}</span>
-                  {day.hasOrder && <div className="w-2 h-2 bg-green-500 rounded-full"></div>}
+                <div className="flex justify-between items-start px-1">
+                  <span className={`text-sm font-bold ${day.isHoliday ? 'text-red-600' : ''}`}>{day.dayNum}</span>
+                  {day.hasOrder && <div className="w-1.5 h-1.5 bg-green-500 rounded-full mt-1"></div>}
                 </div>
-                <div className="text-[10px] flex flex-wrap gap-0.5 content-end">
-                   {day.orderData?.breakfast && <span className="bg-orange-100 text-orange-600 px-1 rounded">早</span>}
-                   {day.orderData?.lunch && <span className="bg-yellow-100 text-yellow-600 px-1 rounded">午</span>}
-                   {day.orderData?.dinner && <span className="bg-indigo-100 text-indigo-600 px-1 rounded">晚</span>}
-                   {day.orderData?.lateNight && <span className="bg-purple-100 text-purple-600 px-1 rounded">宵</span>}
+                
+                {/* ★ 手機版優化：改為 2x2 Grid 排列，避免文字過長撐開格子 */}
+                <div className="grid grid-cols-2 gap-0.5 text-[10px] font-bold mt-1">
+                   {/* 順序：早餐(左上) 午餐(右上) 晚餐(左下) 宵夜(右下) */}
+                   <div className={`flex items-center justify-center rounded py-0.5 ${day.orderData?.breakfast ? 'bg-orange-100 text-orange-600' : 'invisible'}`}>早</div>
+                   <div className={`flex items-center justify-center rounded py-0.5 ${day.orderData?.lunch ? 'bg-yellow-100 text-yellow-600' : 'invisible'}`}>午</div>
+                   <div className={`flex items-center justify-center rounded py-0.5 ${day.orderData?.dinner ? 'bg-indigo-100 text-indigo-600' : 'invisible'}`}>晚</div>
+                   <div className={`flex items-center justify-center rounded py-0.5 ${day.orderData?.lateNight ? 'bg-purple-100 text-purple-600' : 'invisible'}`}>宵</div>
                 </div>
               </div>
             );
@@ -556,9 +616,6 @@ const HRReportDashboard = ({ dbOrders, users, exportToCSV }) => {
   );
 };
 
-// ------------------------------------------------------------------
-// ★ 功能 4: 管理後台 (含 Excel 匯入、搜尋、權限切換)
-// ------------------------------------------------------------------
 const AdminPanel = ({ users }) => {
   const [newUser, setNewUser] = useState({ id: '', name: '', unit: '', role: 'USER', password: '1234' });
   const [loading, setLoading] = useState(false);
@@ -566,7 +623,6 @@ const AdminPanel = ({ users }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const fileInputRef = useRef(null);
 
-  // 1. 初始化資料庫
   const initDB = async () => { 
     if (!confirm('確定初始化？')) return; 
     setLoading(true); 
@@ -574,7 +630,6 @@ const AdminPanel = ({ users }) => {
     setLoading(false); 
   };
 
-  // 2. 單筆新增
   const addUser = async () => { 
     if (!newUser.id) return; 
     await setDoc(doc(db, 'users', newUser.id.toUpperCase()), newUser); 
@@ -582,36 +637,24 @@ const AdminPanel = ({ users }) => {
     setNewUser({ id: '', name: '', unit: '', role: 'USER', password: '1234' }); 
   };
 
-  // 3. 刪除
   const deleteUser = async (id) => { 
     if (confirm('確定刪除?')) await deleteDoc(doc(db, 'users', id)); 
   };
 
-  // 4. 更新權限
   const updateUserRole = async (id, newRole) => {
-    try {
-      await updateDoc(doc(db, 'users', id), { role: newRole });
-    } catch (e) {
-      alert('更新失敗');
-    }
+    try { await updateDoc(doc(db, 'users', id), { role: newRole }); } catch (e) { alert('更新失敗'); }
   };
 
-  // 5. 下載 Excel 範本
   const handleDownloadTemplate = () => {
-    const ws = XLSX.utils.json_to_sheet([
-      { id: 'L26001', name: '王小明', unit: '研發部', role: 'USER' },
-      { id: 'L26002', name: '李大華', unit: '業務部', role: 'USER' }
-    ]);
+    const ws = XLSX.utils.json_to_sheet([ { id: 'L26001', name: '王小明', unit: '研發部', role: 'USER' } ]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "員工資料匯入範本");
     XLSX.writeFile(wb, "員工匯入範本.xlsx");
   };
 
-  // 6. 處理 Excel 上傳
   const handleExcelUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = async (evt) => {
       setLoading(true);
@@ -621,46 +664,29 @@ const AdminPanel = ({ users }) => {
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
         const data = XLSX.utils.sheet_to_json(ws);
-
         let successCount = 0;
         const batch = writeBatch(db);
-        
-        // 批次寫入 (Firebase Batch 上限 500 筆，這裡做簡單處理)
         data.forEach((row) => {
-          // 支援中文欄位名或英文欄位名
           const uid = row['id'] || row['工號'] || row['ID'];
           const uname = row['name'] || row['姓名'] || row['NAME'];
           const uunit = row['unit'] || row['部門'] || row['UNIT'];
           const urole = row['role'] || row['權限'] || 'USER';
-
           if (uid && uname) {
             const idStr = String(uid).trim().toUpperCase();
             const docRef = doc(db, 'users', idStr);
-            batch.set(docRef, {
-              id: idStr,
-              name: String(uname).trim(),
-              unit: String(uunit || '').trim(),
-              role: String(urole).trim().toUpperCase(),
-              password: '1234'
-            });
+            batch.set(docRef, { id: idStr, name: String(uname).trim(), unit: String(uunit || '').trim(), role: String(urole).trim().toUpperCase(), password: '1234' });
             successCount++;
           }
         });
-
         await batch.commit();
         alert(`成功匯入 ${successCount} 筆資料！`);
-      } catch (err) {
-        console.error(err);
-        alert('匯入失敗，請確認檔案格式');
-      }
+      } catch (err) { alert('匯入失敗，請確認檔案格式'); }
       setLoading(false);
-      // 清空 input 讓同個檔案可以再選一次
       if(fileInputRef.current) fileInputRef.current.value = '';
     };
     reader.readAsBinaryString(file);
   };
 
-  // 7. 處理純文字批量匯入
   const handleTextBulkImport = async () => {
     if (!bulkText) return;
     const rows = bulkText.split('\n').filter(r => r.trim());
@@ -683,124 +709,27 @@ const AdminPanel = ({ users }) => {
     setLoading(false);
   };
 
-  // 篩選顯示的使用者
   const filteredUsers = useMemo(() => {
-    return users.filter(u => 
-      u.id.includes(searchTerm.toUpperCase()) || 
-      u.name.includes(searchTerm) ||
-      u.unit.includes(searchTerm)
-    );
+    return users.filter(u => u.id.includes(searchTerm.toUpperCase()) || u.name.includes(searchTerm) || u.unit.includes(searchTerm));
   }, [users, searchTerm]);
 
   return (
     <div className="space-y-6">
-      {/* 批量匯入區塊 */}
       <div className="bg-white p-6 rounded-2xl border shadow-sm">
         <h2 className="font-bold text-lg mb-4 flex gap-2 items-center"><FileUp /> 批量匯入員工</h2>
-        
         <div className="grid md:grid-cols-2 gap-6">
-          {/* 左邊：Excel 上傳 */}
           <div className="border p-4 rounded-xl bg-gray-50 space-y-4">
             <h3 className="font-bold text-gray-700 flex items-center gap-2">方式一：Excel 檔案上傳</h3>
-            <div className="flex gap-2">
-              <button onClick={handleDownloadTemplate} className="text-xs bg-white border px-2 py-1 rounded flex items-center gap-1 hover:bg-gray-100">
-                <FileDown size={12}/> 下載範本
-              </button>
-            </div>
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:bg-blue-50 transition relative cursor-pointer">
-              <input 
-                type="file" 
-                accept=".xlsx, .xls, .csv"
-                ref={fileInputRef}
-                onChange={handleExcelUpload}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-              />
-              <div className="flex flex-col items-center text-gray-400">
-                <Upload size={32} className="mb-2"/>
-                <span className="text-sm">點擊或拖曳 Excel 檔案至此</span>
-              </div>
-            </div>
+            <div className="flex gap-2"><button onClick={handleDownloadTemplate} className="text-xs bg-white border px-2 py-1 rounded flex items-center gap-1 hover:bg-gray-100"><FileDown size={12}/> 下載範本</button></div>
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:bg-blue-50 transition relative cursor-pointer"><input type="file" accept=".xlsx, .xls, .csv" ref={fileInputRef} onChange={handleExcelUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"/><div className="flex flex-col items-center text-gray-400"><Upload size={32} className="mb-2"/><span className="text-sm">點擊或拖曳 Excel 檔案至此</span></div></div>
           </div>
-
-          {/* 右邊：純文字貼上 */}
-          <div className="border p-4 rounded-xl bg-gray-50 space-y-4">
-            <h3 className="font-bold text-gray-700">方式二：純文字貼上</h3>
-            <textarea 
-              placeholder="格式：工號,姓名,部門&#10;L25001,王大明,研發部"
-              className="w-full border p-3 rounded-lg h-32 text-sm font-mono"
-              value={bulkText}
-              onChange={(e) => setBulkText(e.target.value)}
-            />
-            <button 
-              onClick={handleTextBulkImport}
-              disabled={loading || !bulkText}
-              className="w-full bg-green-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-green-700 disabled:bg-gray-400 transition"
-            >
-              {loading ? '處理中...' : '確認匯入文字'}
-            </button>
-          </div>
+          <div className="border p-4 rounded-xl bg-gray-50 space-y-4"><h3 className="font-bold text-gray-700">方式二：純文字貼上</h3><textarea placeholder="格式：工號,姓名,部門&#10;L25001,王大明,研發部" className="w-full border p-3 rounded-lg h-32 text-sm font-mono" value={bulkText} onChange={(e) => setBulkText(e.target.value)} /><button onClick={handleTextBulkImport} disabled={loading || !bulkText} className="w-full bg-green-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-green-700 disabled:bg-gray-400 transition">{loading ? '處理中...' : '確認匯入文字'}</button></div>
         </div>
       </div>
-
       <div className="bg-white p-6 rounded-2xl border shadow-sm">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="font-bold text-lg flex gap-2 items-center"><UserPlus /> 人員管理</h2>
-          {/* 搜尋框 */}
-          <div className="flex items-center gap-2 bg-gray-100 px-3 py-1.5 rounded-lg">
-            <Search size={16} className="text-gray-400"/>
-            <input 
-              placeholder="搜尋工號或姓名..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="bg-transparent outline-none text-sm w-40"
-            />
-          </div>
-        </div>
-
-        {/* 單筆新增 */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4 bg-gray-50 p-3 rounded-xl border">
-          <input placeholder="工號" value={newUser.id} onChange={(e) => setNewUser({ ...newUser, id: e.target.value.toUpperCase() })} className="border p-2 rounded" />
-          <input placeholder="姓名" value={newUser.name} onChange={(e) => setNewUser({ ...newUser, name: e.target.value })} className="border p-2 rounded" />
-          <input placeholder="部門" value={newUser.unit} onChange={(e) => setNewUser({ ...newUser, unit: e.target.value })} className="border p-2 rounded" />
-          <select value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })} className="border p-2 rounded"><option value="USER">員工</option><option value="SUPPORT">支援課</option><option value="HR">人資</option><option value="ADMIN">管理</option></select>
-          <button onClick={addUser} className="bg-blue-600 text-white rounded font-bold hover:bg-blue-700">單筆新增</button>
-        </div>
-
-        {/* 人員列表 */}
-        <div className="h-96 overflow-y-auto border rounded divide-y">
-          <div className="flex justify-between p-3 bg-gray-100 font-bold text-xs text-gray-500 sticky top-0">
-            <span className="w-24">工號</span>
-            <span className="w-20">姓名</span>
-            <span className="w-24">部門</span>
-            <span className="w-28 text-center">權限 (點選切換)</span>
-            <span className="w-10">刪除</span>
-          </div>
-          {filteredUsers.map((u) => (
-            <div key={u.id} className="flex justify-between p-3 hover:bg-gray-50 items-center text-sm">
-              <span className="w-24 font-mono font-bold text-blue-600">{u.id}</span>
-              <span className="w-20 font-bold">{u.name}</span>
-              <span className="w-24 text-gray-500">{u.unit}</span>
-              <div className="w-28 text-center">
-                <select 
-                  value={u.role} 
-                  onChange={(e) => updateUserRole(u.id, e.target.value)}
-                  className={`text-xs px-2 py-1 rounded cursor-pointer border-none outline-none font-bold
-                    ${u.role === 'ADMIN' ? 'bg-red-100 text-red-600' : 
-                      u.role === 'HR' ? 'bg-green-100 text-green-600' :
-                      u.role === 'SUPPORT' ? 'bg-purple-100 text-purple-600' : 'bg-gray-100 text-gray-600'}
-                  `}
-                >
-                  <option value="USER">USER</option>
-                  <option value="SUPPORT">SUPPORT</option>
-                  <option value="HR">HR</option>
-                  <option value="ADMIN">ADMIN</option>
-                </select>
-              </div>
-              <button onClick={() => deleteUser(u.id)} className="w-10 text-gray-400 hover:text-red-500 flex justify-center"><Trash2 size={16} /></button>
-            </div>
-          ))}
-          {filteredUsers.length === 0 && <div className="p-4 text-center text-gray-400">查無資料</div>}
-        </div>
+        <div className="flex justify-between items-center mb-4"><h2 className="font-bold text-lg flex gap-2 items-center"><UserPlus /> 人員管理</h2><div className="flex items-center gap-2 bg-gray-100 px-3 py-1.5 rounded-lg"><Search size={16} className="text-gray-400"/><input placeholder="搜尋工號或姓名..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="bg-transparent outline-none text-sm w-40"/></div></div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4 bg-gray-50 p-3 rounded-xl border"><input placeholder="工號" value={newUser.id} onChange={(e) => setNewUser({ ...newUser, id: e.target.value.toUpperCase() })} className="border p-2 rounded" /><input placeholder="姓名" value={newUser.name} onChange={(e) => setNewUser({ ...newUser, name: e.target.value })} className="border p-2 rounded" /><input placeholder="部門" value={newUser.unit} onChange={(e) => setNewUser({ ...newUser, unit: e.target.value })} className="border p-2 rounded" /><select value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })} className="border p-2 rounded"><option value="USER">員工</option><option value="SUPPORT">支援課</option><option value="HR">人資</option><option value="ADMIN">管理</option></select><button onClick={addUser} className="bg-blue-600 text-white rounded font-bold hover:bg-blue-700">單筆新增</button></div>
+        <div className="h-96 overflow-y-auto border rounded divide-y"><div className="flex justify-between p-3 bg-gray-100 font-bold text-xs text-gray-500 sticky top-0"><span className="w-24">工號</span><span className="w-20">姓名</span><span className="w-24">部門</span><span className="w-28 text-center">權限 (點選切換)</span><span className="w-10">刪除</span></div>{filteredUsers.map((u) => (<div key={u.id} className="flex justify-between p-3 hover:bg-gray-50 items-center text-sm"><span className="w-24 font-mono font-bold text-blue-600">{u.id}</span><span className="w-20 font-bold">{u.name}</span><span className="w-24 text-gray-500">{u.unit}</span><div className="w-28 text-center"><select value={u.role} onChange={(e) => updateUserRole(u.id, e.target.value)} className={`text-xs px-2 py-1 rounded cursor-pointer border-none outline-none font-bold ${u.role === 'ADMIN' ? 'bg-red-100 text-red-600' : u.role === 'HR' ? 'bg-green-100 text-green-600' : u.role === 'SUPPORT' ? 'bg-purple-100 text-purple-600' : 'bg-gray-100 text-gray-600'}`}><option value="USER">USER</option><option value="SUPPORT">SUPPORT</option><option value="HR">HR</option><option value="ADMIN">ADMIN</option></select></div><button onClick={() => deleteUser(u.id)} className="w-10 text-gray-400 hover:text-red-500 flex justify-center"><Trash2 size={16} /></button></div>))}{filteredUsers.length === 0 && <div className="p-4 text-center text-gray-400">查無資料</div>}</div>
       </div>
     </div>
   );
